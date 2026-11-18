@@ -2,6 +2,7 @@ import time
 
 import numpy as np
 import pytest
+from sitewatch.capture import FramePacket
 from sitewatch.domain import Detection
 from sitewatch.models import MonitoringSession, Occurrence
 from sitewatch.monitor import Monitor
@@ -12,11 +13,12 @@ class FakeCapture:
     def __init__(self, *args):
         self.sequence = 0
         self.error = None
+        self.finished = False
         self.closed = False
 
     def snapshot(self):
         self.sequence += 1
-        return self.sequence, time.monotonic(), np.zeros((100, 100, 3), dtype=np.uint8)
+        return FramePacket(self.sequence, time.monotonic(), np.zeros((100, 100, 3), dtype=np.uint8))
 
     def close(self):
         self.closed = True
@@ -67,3 +69,30 @@ def test_camera_failure_never_creates_a_negative_occurrence(context):
     with database.session() as db:
         assert db.scalar(select(Occurrence)) is None
         assert db.scalar(select(MonitoringSession)).status == "interrupted"
+
+
+@pytest.mark.integration
+def test_capture_cleanup_failure_still_finalizes_status_and_positive_evidence(context):
+    settings, database = context
+    settings.inference_fps = 30
+
+    class ClosingFailureCapture(FakeCapture):
+        def snapshot(self):
+            packet = super().snapshot()
+            self.finished = self.sequence > 2
+            return packet
+
+        def close(self):
+            raise RuntimeError("Controlled capture cleanup failure.")
+
+    monitor = Monitor(settings, database, FailingDetector, ClosingFailureCapture)
+    monitor.start()
+    monitor.thread.join(timeout=10)
+    assert not monitor.running
+    assert monitor.snapshot()["state"] == "error"
+    assert "release capture" in monitor.snapshot()["error"]
+    with database.session() as db:
+        assert db.scalar(select(MonitoringSession)).status == "interrupted"
+        occurrence = db.scalar(select(Occurrence))
+        assert occurrence.status == "interrupted"
+        assert occurrence.classification == "person_detected"

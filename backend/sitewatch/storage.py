@@ -1,22 +1,21 @@
-import os
+from datetime import timedelta
 from pathlib import Path
 from uuid import UUID
 
-import cv2
 import numpy as np
 from sqlalchemy import select
 
 from .database import Database
 from .domain import EventState
+from .evidence import EvidenceFiles
 from .models import Evidence, MonitoringSession, Observation, Occurrence, Source, utcnow
+from .policy import MEBIBYTE
 
 
 class EventStore:
     def __init__(self, database: Database, data_dir: Path, max_mb: int):
         self.database = database
-        self.root = data_dir / "evidence"
-        self.limit = max_mb * 1024 * 1024
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.files = EvidenceFiles(data_dir / "evidence", max_mb * MEBIBYTE)
 
     def session_start(self, source: Source, version: str, configuration: dict) -> UUID:
         with self.database.session.begin() as db:
@@ -62,8 +61,6 @@ class EventStore:
                 "analysis_failed": state.failed,
             }
             # Monotonic elapsed time is mapped back onto UTC for audit timestamps.
-            from datetime import timedelta
-
             row.last_activity_at = row.started_at + timedelta(
                 seconds=state.last_activity - state.started
             )
@@ -72,36 +69,17 @@ class EventStore:
                 row.status = "interrupted" if interrupted else "closed"
 
     def evidence(self, event_id: UUID, original: np.ndarray, annotated: np.ndarray) -> None:
-        folder = self.root / str(event_id)
-        folder.mkdir(exist_ok=True)
-        used = sum(p.stat().st_size for p in self.root.rglob("*.jpg"))
-        images = []
-        for kind, image in (("original", original), ("annotated", annotated)):
-            ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 88])
-            if not ok:
-                raise RuntimeError("Evidence JPEG encoding failed.")
-            images.append((kind, encoded.tobytes()))
-        if used + sum(len(content) for _, content in images) > self.limit:
-            raise RuntimeError(
-                "Evidence storage quota reached. Archive or remove local evidence before restarting."
-            )
-        for kind, content in images:
-            target = folder / f"{kind}.jpg"
-            temp = folder / f"{kind}.tmp"
-            temp.write_bytes(content)
-            os.replace(temp, target)
+        images = self.files.save_pair(event_id, original, annotated)
         with self.database.session.begin() as db:
             existing = {
                 e.kind: e
                 for e in db.scalars(select(Evidence).where(Evidence.occurrence_id == event_id))
             }
-            for kind, _ in images:
-                if kind in existing:
-                    existing[kind].captured_at = utcnow()
+            for image in images:
+                if image.kind in existing:
+                    existing[image.kind].captured_at = utcnow()
                 else:
-                    db.add(
-                        Evidence(occurrence_id=event_id, kind=kind, path=f"{event_id}/{kind}.jpg")
-                    )
+                    db.add(Evidence(occurrence_id=event_id, kind=image.kind, path=image.path))
 
     def session_end(self, session_id: UUID, error: str | None) -> None:
         with self.database.session.begin() as db:

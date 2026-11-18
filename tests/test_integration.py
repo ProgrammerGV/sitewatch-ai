@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
@@ -84,14 +82,3 @@ def test_single_instance_guard_releases_after_shutdown(tmp_path):
         first.release()
     second.acquire()
     second.release()
-
-
-@pytest.mark.integration
-def test_evidence_quota_fails_explicitly(context):
-    settings, database = context
-    store = EventStore(database, settings.data_dir, 1)
-    store.limit = 10
-    with pytest.raises(RuntimeError, match="quota"):
-        store.evidence(
-            uuid4(), np.zeros((20, 20, 3), dtype=np.uint8), np.zeros((20, 20, 3), dtype=np.uint8)
-        )

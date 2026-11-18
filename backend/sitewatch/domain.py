@@ -1,9 +1,20 @@
 """Pure rules: no OpenCV, database, web server, or model dependency."""
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, NamedTuple
+
+from .policy import (
+    MAX_NEGATIVE_ANALYSIS_GAP_SECONDS,
+    MIN_CONFIRMATION_SAMPLES,
+    MIN_NEGATIVE_ANALYSIS_SAMPLES,
+)
 
 Classification = Literal["person_detected", "no_person_detected", "inconclusive"]
+
+
+class EventTransition(NamedTuple):
+    opened: bool
+    closed: bool
 
 
 @dataclass(frozen=True)
@@ -32,13 +43,18 @@ class EventState:
         self.valid_samples += 1
         self.peak_people = max(self.peak_people, count)
         self.person_confirmed |= confirmed
-        self.max_gap = max(self.max_gap, now - (self.last_sample or self.started))
+        previous_sample = self.started if self.last_sample is None else self.last_sample
+        self.max_gap = max(self.max_gap, now - previous_sample)
         self.last_sample = now
 
     def classify(self, interrupted: bool = False) -> Classification:
         if self.person_confirmed:
             return "person_detected"
-        if interrupted or self.failed or self.valid_samples < 3 or self.max_gap > 2:
+        insufficient_coverage = (
+            self.valid_samples < MIN_NEGATIVE_ANALYSIS_SAMPLES
+            or self.max_gap > MAX_NEGATIVE_ANALYSIS_GAP_SECONDS
+        )
+        if interrupted or self.failed or insufficient_coverage:
             return "inconclusive"
         return "no_person_detected"
 
@@ -51,7 +67,7 @@ class EventRules:
     hits: list[float] = field(default_factory=list)
     motion_hits: list[float] = field(default_factory=list)
 
-    def step(self, now: float, motion: bool, people: int) -> tuple[bool, bool]:
+    def step(self, now: float, motion: bool, people: int) -> EventTransition:
         """Return (opened, closed). Presence is independent of the motion signal."""
         self.hits = [t for t in self.hits if now - t <= self.confirmation_window]
         self.motion_hits = [t for t in self.motion_hits if now - t <= self.confirmation_window]
@@ -59,20 +75,20 @@ class EventRules:
             self.hits.append(now)
         if motion:
             self.motion_hits.append(now)
-        confirmed = people > 0 and len(self.hits) >= 2
-        motion_confirmed = motion and len(self.motion_hits) >= 2
+        confirmed = people > 0 and len(self.hits) >= MIN_CONFIRMATION_SAMPLES
+        motion_confirmed = motion and len(self.motion_hits) >= MIN_CONFIRMATION_SAMPLES
         opened = False
         if self.state is None and (confirmed or motion_confirmed):
             self.state = EventState(now, now)
             opened = True
         if self.state is None:
-            return False, False
+            return EventTransition(opened=False, closed=False)
         self.state.sample(now, people, confirmed)
         # Once confirmed, every positive observation maintains presence, even while still.
         if motion_confirmed or (people and self.state.person_confirmed):
             self.state.last_activity = now
         closed = now - self.state.last_activity >= self.idle_seconds
-        return opened, closed
+        return EventTransition(opened=opened, closed=closed)
 
     def reset(self) -> None:
         self.state = None
