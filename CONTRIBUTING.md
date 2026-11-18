@@ -20,6 +20,7 @@ Before opening a pull request:
 .venv\Scripts\python.exe -m pytest -q
 cd frontend
 npm ci
+npm run format:check
 npm run build
 ```
 

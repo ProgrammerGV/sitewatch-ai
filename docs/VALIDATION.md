@@ -8,6 +8,7 @@ Initial local validation: **November 18, 2026**, Windows notebook, approximately
 - Backend static checks passed after formatting and import cleanup.
 - TypeScript checking and the production frontend build passed.
 - The migration was applied to fresh application and test databases.
+- GitHub Actions also passed both jobs on Ubuntu: backend with PostgreSQL 16 and the frontend build/runtime dependency audit.
 - The full npm development dependency audit has the unresolved glob-matching advisory described in [SECURITY.md](../SECURITY.md).
 
 Tests use controlled detections for deterministic rule and failure checks. They do not establish the accuracy of the real detector. Integration tests run in their own randomly named PostgreSQL schemas and remove those schemas afterward.
