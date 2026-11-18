@@ -9,14 +9,19 @@ The first release deliberately supports one source, one active session, and one 
 | Module | Responsibility |
 | --- | --- |
 | `domain` | Pure geometry, confirmation, grouping, classification |
+| `capture` | Camera/video acquisition and a typed latest-frame packet |
 | `vision` | OpenCV motion, YOLO inference, annotation |
-| `monitor` | Capture slot, worker lifecycle, pipeline orchestration |
-| `storage` | Session/event persistence and evidence files |
+| `pipeline` | Frame analysis and occurrence transitions, behind explicit detector/persistence interfaces |
+| `monitor`, `monitor_state` | Worker lifecycle and validated, thread-safe runtime presentation |
+| `storage`, `evidence` | Database persistence and a separate JPEG/filesystem store |
 | `database`, `models` | Transactions, mappings, startup reconciliation |
-| `app`, `schemas` | HTTP interface, validation, local-access controls |
-| React frontend | Monitoring, configuration, history, human review |
+| `app`, `routes`, `schemas` | Application setup, route groups, validation and local-access controls |
+| React pages/components | Monitoring, configuration, history and review presentation |
+| React hooks | Application actions, polling, cancellation and feedback |
 
 Model inference never runs inside a FastAPI request handler. The current worker is a thread; moving it to another process or server is a future deployment change, not a claim that the current application already supports distributed operation.
+
+See [the refactoring walkthrough](REFACTORING.md) for the responsibilities and the order in which to study them.
 
 ## Detection and occurrence lifecycle
 

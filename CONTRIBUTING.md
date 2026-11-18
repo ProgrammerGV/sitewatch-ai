@@ -21,6 +21,7 @@ Before opening a pull request:
 cd frontend
 npm ci
 npm run format:check
+npm test
 npm run build
 ```
 

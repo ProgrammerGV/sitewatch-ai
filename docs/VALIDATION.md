@@ -50,3 +50,13 @@ Webcam imagery and runtime evidence remain local and ignored by Git. Repository 
 - Commercial cloud costs, multi-tenant security and end-to-end notification delivery.
 
 A staged local demonstration supports this learning project; it does not establish commercial monitoring readiness.
+
+## Clean Code refactor validation — November 18, 2026
+
+- 31 backend tests passed with PostgreSQL integration enabled.
+- 4 native Node API-client tests passed, including cancellation and non-JSON proxy errors.
+- TypeScript checking and the separate production build passed.
+- Alembic reported no schema changes.
+- Browser verification used port 8001, a disposable PostgreSQL schema and a controlled inconclusive occurrence. Configuration persistence and review history passed, without opening the webcam or modifying the user's live history.
+
+The original port-8000 process and frontend build remained intact during implementation so local testing could continue.

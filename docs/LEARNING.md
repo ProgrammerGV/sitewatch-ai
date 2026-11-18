@@ -2,6 +2,8 @@
 
 Work through these experiments before adding features. Keep a short log of the change, expected result, observed result, and any trade-off.
 
+Start with [the Clean Code refactoring walkthrough](REFACTORING.md) to see how each responsibility is separated.
+
 ## 1. Follow one image
 
 Read `LatestFrameCapture`, `YoloDetector.detect`, `Detection.in_region`, and `EventRules.step`, in that order. Trace how image pixels become boxes, application data, and an occurrence.

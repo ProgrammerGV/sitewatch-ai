@@ -125,6 +125,7 @@ The latest-frame slot stays bounded. Inference, camera capture, API calls, and d
 
 - [Architecture and database model](docs/ARCHITECTURE.md)
 - [Learning guide](docs/LEARNING.md)
+- [Clean Code refactoring walkthrough](docs/REFACTORING.md)
 - [Validation results and limitations](docs/VALIDATION.md)
 - [Security and development dependency notes](SECURITY.md)
 - [Contribution and commit conventions](CONTRIBUTING.md)
